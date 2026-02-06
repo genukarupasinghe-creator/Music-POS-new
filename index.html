@@ -3,137 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Admin - Musical POS</title>
+    <title>Musical Show - Book Now</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f4f4f4; padding: 10px; }
-        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; margin: 5px; }
-        .btn-close { background: #dc3545; }
-        .btn-open { background: #28a745; }
-        .btn-excel { background: #217346; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #333; color: white; }
-        #reader { width: 100%; max-width: 400px; margin: auto; }
-        #login-box { max-width: 300px; margin: 100px auto; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; margin-bottom: 20px; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: #007bff; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .check-btn { background: #28a745; }
+        #qrcode-container { display: none; }
     </style>
 </head>
 <body>
-
-    <div id="login-box" class="card">
-        <h2>Admin Login</h2>
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="Password">
-        <button class="btn" style="background: #007bff; width: 100%;" onclick="login()">Login</button>
+    <div class="card">
+        <h2>🎸 Book Your Ticket</h2>
+        <input type="text" id="custName" placeholder="ඔබේ නම">
+        <select id="showSelector">
+            <option value="Flashback Live">Flashback Live - Rs. 2000</option>
+            <option value="Sunflower Unplugged">Sunflower Unplugged - Rs. 5000</option>
+        </select>
+        <button onclick="bookTicket()">Request Booking</button>
     </div>
-
-    <div id="admin-content" style="display:none;">
-        
-        <div class="card">
-            <h3>🚫 Ticket Control (Sold Out)</h3>
-            <div id="controls">
-                <button class="btn btn-close" onclick="toggleShow('Flashback Live', 'closed')">Sold Out: Flashback</button>
-                <button class="btn btn-close" onclick="toggleShow('Sunflower Unplugged', 'closed')">Sold Out: Sunflower</button>
-                <button class="btn btn-open" onclick="toggleShow('Flashback Live', 'open')">Reset All to Open</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>🔍 Gate Entry Scanner</h3>
-            <div id="reader"></div>
-            <div id="scan-result" style="margin-top:10px; text-align:center;"></div>
-        </div>
-
-        <div class="card">
-            <div style="display:flex; justify-content: space-between;">
-                <h3>📊 Sales Records</h3>
-                <button class="btn btn-excel" onclick="exportToExcel()">Download Excel</button>
-            </div>
-            <table id="bookingTable">
-                <thead>
-                    <tr><th>Name</th><th>Show</th><th>Price</th><th>Time</th></tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-        </div>
-
-        <button class="btn" style="background: #666;" onclick="firebase.auth().signOut().then(()=>location.reload())">Logout</button>
+    <div class="card">
+        <h3>✅ Get Your Ticket</h3>
+        <input type="text" id="checkID" placeholder="Reference ID">
+        <button class="check-btn" onclick="downloadVerifiedTicket()">Download Ticket PDF</button>
     </div>
+    <div id="qrcode-container"></div>
+    <script>
+        // ⚠️ මෙතනට ඔයාගේ Firebase Config එක අනිවාර්යයෙන් දාන්න
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
-<script>
-    // ⚠️ Insert your Firebase Config here
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_SENDER_ID",
-        appId: "YOUR_APP_ID"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-
-    // LOGIN
-    function login() {
-        const e = document.getElementById('email').value;
-        const p = document.getElementById('password').value;
-        firebase.auth().signInWithEmailAndPassword(e, p)
-            .catch(err => alert(err.message));
-    }
-
-    firebase.auth().onAuthStateChanged(user => {
-        if(user) {
-            document.getElementById('login-box').style.display = 'none';
-            document.getElementById('admin-content').style.display = 'block';
-            loadData();
-            startScanner();
-        }
-    });
-
-    // SOLD OUT TOGGLE
-    function toggleShow(name, status) {
-        db.collection("showSettings").doc(name).set({ status: status })
-            .then(() => alert(name + " is now " + status));
-    }
-
-    // LOAD TABLE
-    function loadData() {
-        db.collection("bookings").orderBy("timestamp", "desc").onSnapshot(snap => {
-            let html = "";
-            snap.forEach(doc => {
-                const d = doc.data();
-                html += `<tr><td>${d.customerName}</td><td>${d.showName}</td><td>${d.amount}</td><td>${d.timestamp?d.timestamp.toDate().toLocaleString():''}</td></tr>`;
+        function bookTicket() {
+            const name = document.getElementById('custName').value;
+            const show = document.getElementById('showSelector').value;
+            if(!name) return alert("නම ඇතුළත් කරන්න");
+            db.collection("bookings").add({
+                customerName: name,
+                showName: show,
+                status: "pending",
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(docRef => {
+                alert("Success! Your ID: " + docRef.id);
             });
-            document.getElementById('tableBody').innerHTML = html;
-        });
-    }
+        }
 
-    // EXPORT
-    function exportToExcel() {
-        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("bookingTable")), "Sales.xlsx");
-    }
-
-    // QR SCANNER
-    function startScanner() {
-        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        scanner.render((id) => {
+        function downloadVerifiedTicket() {
+            const id = document.getElementById('checkID').value;
             db.collection("bookings").doc(id).get().then(doc => {
-                const res = document.getElementById('scan-result');
-                if(doc.exists) {
-                    res.innerHTML = `<b style="color:green">✅ VALID: ${doc.data().customerName}</b>`;
+                if(doc.exists && doc.data().status === "verified") {
+                    generatePDF(doc.data().customerName, doc.data().showName, id);
                 } else {
-                    res.innerHTML = `<b style="color:red">❌ INVALID TICKET</b>`;
+                    alert("තවම Verified කර නැත!");
                 }
             });
-        });
-    }
-</script>
+        }
+
+        function generatePDF(name, show, id) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const qrContainer = document.getElementById('qrcode-container');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, { text: id, width: 100, height: 100 });
+            setTimeout(() => {
+                const qrImg = qrContainer.getElementsByTagName('img')[0].src;
+                doc.text("OFFICIAL TICKET", 105, 20, null, null, "center");
+                doc.text(`Name: ${name}`, 20, 40);
+                doc.text(`Show: ${show}`, 20, 50);
+                doc.addImage(qrImg, 'PNG', 75, 70, 60, 60);
+                doc.save(`Ticket_${name}.pdf`);
+            }, 500);
+        }
+    </script>
 </body>
 </html>
