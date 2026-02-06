@@ -1,0 +1,11 @@
+const selectedShow = document.getElementById('showSelector').value;
+
+// Check if sold out
+db.collection("showSettings").doc(selectedShow).get().then((doc) => {
+    if (doc.exists && doc.data().status === 'closed') {
+        alert("සමාවන්න! මෙම දර්ශනයේ සියලුම ප්‍රවේශපත් අවසන් (SOLD OUT).");
+    } else {
+        // මෙතනට ඔයාගේ කලින් තිබ්බ Booking + PDF Download code එක දාන්න
+        proceedWithBooking(); 
+    }
+});
